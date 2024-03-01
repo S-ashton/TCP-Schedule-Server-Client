@@ -1,0 +1,200 @@
+import java.io.*;
+import java.net.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
+class IncorrectActionException extends Exception {
+    public IncorrectActionException(String message) {
+        super(message);
+    }
+}
+
+class ActionClassNotFoundException extends Exception {
+    public ActionClassNotFoundException(String message) {
+        super(message);
+    }
+}
+//}
+// better def in notes making a class Serializable in Java enables its objects to be converted into a byte stream, 
+//facilitating features like object persistence, network communication, and more.
+// Define a ClassInfo class for storing class details
+class ClassInfo implements Serializable {
+    private static final long serialVersionUID = 1L;
+
+    private String date;
+    private String time;
+    private String room;
+    private String length;
+
+    public ClassInfo(String date, String time, String room, String length) {
+        this.date = date;
+        this.time = time;
+        this.room = room;
+        this.length = length;
+    }
+
+    public String getDate() {
+        return date;
+    }
+
+    public String getTime() {
+        return time;
+    }
+
+    public String getRoom() {
+        return room;
+    }
+      public String getlength() {
+        return length;
+    }
+}
+
+
+public class ServerApplication {
+    private static final int PORT = 12345;
+
+    private HashMap<String, List<ClassInfo>> scheduleData;
+
+    public ServerApplication() {
+        scheduleData = new HashMap<>();
+    }
+
+    public void startServer() {
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            System.out.println("Server is running. Waiting for connections...");
+
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                handleClient(clientSocket);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void handleClient(Socket clientSocket) {
+        try (
+            ObjectOutputStream out = new ObjectOutputStream(clientSocket.getOutputStream());
+            ObjectInputStream in = new ObjectInputStream(clientSocket.getInputStream())
+        ) {
+            while (true) {
+                try {
+                    String action = (String) in.readObject();
+                    String result = performAction(action);
+                    out.writeObject(result);
+
+                    if ("STOP".equals(action)) {
+                        clientSocket.close();
+                        break;
+                    }
+                } catch (IncorrectActionException | ActionClassNotFoundException e) {
+                    out.writeObject("Error: " + e.getMessage());
+                } catch (Exception e) {
+                    out.writeObject("Error: " + e.getMessage());
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String performAction(String action) throws IncorrectActionException, ActionClassNotFoundException {
+        String[] actionParts = action.split(",");
+        try {
+            switch (actionParts[0]) {
+                case "ADD_CLASS":
+                    if (actionParts.length == 6) {
+                        String date = actionParts[1].trim();
+                        String time = actionParts[2].trim();
+                        String room = actionParts[3].trim();
+                        String className = actionParts[4].trim();
+                        String length = actionParts[5].trim();
+
+                        if (!scheduleData.containsKey(className)) {
+                            scheduleData.put(className, new ArrayList<>());
+                        }
+
+                        List<ClassInfo> classes = scheduleData.get(className);
+
+                        if (!hasClash(classes, date, time, room)) {
+                            // No clash, add the class
+                            classes.add(new ClassInfo(date, time, room, length));
+                            return "Class added successfully.";
+                        } else {
+                            throw new IncorrectActionException("Class scheduling clash.");
+                        }
+                    } else {
+                        throw new IncorrectActionException("Invalid ADD_CLASS format.");
+                    }
+
+                case "REMOVE_CLASS":
+                    if (actionParts.length == 2) {
+                        String classNameToRemove = actionParts[1].trim();
+
+                        if (scheduleData.containsKey(classNameToRemove)) {
+                            List<ClassInfo> classes = scheduleData.get(classNameToRemove);
+
+                            // Assuming the client provides an index to remove (0-based index)
+                            if (!classes.isEmpty()) {
+                                // Get the removed class information
+                                ClassInfo removedClass = classes.remove(0);
+
+                                // Implement logic to free the time slot and reply with the freed time slot
+                                String freedTimeSlot = "Freed time slot: " + removedClass.getDate() + " " +
+                                        removedClass.getTime() + " in room " + removedClass.getRoom();
+
+                                return freedTimeSlot;
+                            } else {
+                                throw new IncorrectActionException("No classes to remove for " + classNameToRemove);
+                            }
+                        } else {
+                            throw new IncorrectActionException("Class not found: " + classNameToRemove);
+                        }
+
+                    } else {
+                        throw new IncorrectActionException("Invalid REMOVE_CLASS format.");
+                    }
+
+                case "DISPLAY_SCHEDULE":
+                    if (actionParts.length == 2) {
+                        String classNameToDisplay = actionParts[1].trim();
+
+                        if (scheduleData.containsKey(classNameToDisplay)) {
+                            // Display the schedule for the specified class in the console
+                            List<ClassInfo> classes = scheduleData.get(classNameToDisplay);
+                            for (ClassInfo classInfo : classes) {
+                                System.out.println("Class: " + classNameToDisplay + ", Date: " +
+                                        classInfo.getDate() + ", Time: " + classInfo.getTime() +
+                                        ", Room: " + classInfo.getRoom());
+                            }
+
+                            // Return a message indicating successful display
+                            return "Schedule displayed successfully.";
+                        } else {
+                            throw new IncorrectActionException("Class not found: " + classNameToDisplay);
+                        }
+
+                    } else {
+                        throw new IncorrectActionException("Invalid DISPLAY_SCHEDULE format.");
+                    }
+
+                default:
+                    throw new IncorrectActionException("Invalid action.");
+            }
+        } catch (ArrayIndexOutOfBoundsException e) {
+            throw new IncorrectActionException("Invalid action format.");
+        }
+    }
+
+    private boolean hasClash(List<ClassInfo> classes, String date, String time, String room) {
+        // Implementation of logic to check for scheduling clash
+        // assume there is a clash if the class has the same date, time, and room
+        for (ClassInfo classInfo : classes) {
+            if (classInfo.getDate().equals(date) && classInfo.getTime().equals(time) && classInfo.getRoom().equals(room)) {
+                return true; // Clash found
+            }
+        }
+        return false; // No clash
+    }
+}
