@@ -1,8 +1,24 @@
-import java.io.*;
-import java.net.*;
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ */
+
+package com.tcpserver;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.io.Serializable;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+
+/**
+ *
+ * @author marshmallow
+ */
 
 class IncorrectActionException extends Exception {
     public IncorrectActionException(String message) {
@@ -51,55 +67,69 @@ class ClassInfo implements Serializable {
 }
 
 
-public class ServerApplication {
-    private static final int PORT = 12345;
+public class TCPServer {
 
-    private HashMap<String, List<ClassInfo>> scheduleData;
+  private static ServerSocket servSock;
+  private static final int PORT = 1234;
+  private static int clientConnections = 0;
+  private static HashMap<String, List<ClassInfo>> scheduleData;
 
-    public ServerApplication() {
+public TCPServer() {
         scheduleData = new HashMap<>();
     }
 
-    public void startServer() {
-        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
-            System.out.println("Server is running. Waiting for connections...");
-
-            while (true) {
-                Socket clientSocket = serverSocket.accept();
-                handleClient(clientSocket);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+  public static void main(String[] args) {
+    System.out.println("Opening port...\n");
+    try 
+    {
+        servSock = new ServerSocket(PORT);      //Step 1.
     }
-
-    private void handleClient(Socket clientSocket) {
-        try (
-            ObjectOutputStream out = new ObjectOutputStream(clientSocket.getOutputStream());
-            ObjectInputStream in = new ObjectInputStream(clientSocket.getInputStream())
-        ) {
-            while (true) {
-                try {
-                    String action = (String) in.readObject();
-                    String result = performAction(action);
-                    out.writeObject(result);
-
-                    if ("STOP".equals(action)) {
-                        clientSocket.close();
-                        break;
-                    }
-                } catch (IncorrectActionException | ActionClassNotFoundException e) {
-                    out.writeObject("Error: " + e.getMessage());
-                } catch (Exception e) {
-                    out.writeObject("Error: " + e.getMessage());
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    catch(IOException e) 
+    {
+         System.out.println("Unable to attach to port!");
+         System.exit(1);
     }
+    
+    do 
+    {
+         run();
+    }while (true);
 
-    private String performAction(String action) throws IncorrectActionException, ActionClassNotFoundException {
+  }
+  
+  private static void run()
+  {
+    Socket link = null;                        //Step 2.
+    try 
+    {
+      link = servSock.accept();               //Step 2.
+      clientConnections++;
+      BufferedReader in = new BufferedReader( new InputStreamReader(link.getInputStream())); //Step 3.
+      PrintWriter out = new PrintWriter(link.getOutputStream(),true); //Step 3.
+      
+      String message = in.readLine();         //Step 4.
+      System.out.println("Message received from client: " + clientConnections + "  "+ message);
+      out.println("Echo Message: " + message);     //Step 4.
+     }
+    catch(IOException e)
+    {
+        e.printStackTrace();
+    }
+    finally 
+    {
+       try {
+	    System.out.println("\n* Closing connection... *");
+            link.close();				    //Step 5.
+	}
+       catch(IOException e)
+       {
+            System.out.println("Unable to disconnect!");
+	    System.exit(1);
+       }
+    }
+  }
+  
+   private String performAction(String action) throws IncorrectActionException, ActionClassNotFoundException {
         String[] actionParts = action.split(",");
         try {
             switch (actionParts[0]) {
@@ -198,3 +228,4 @@ public class ServerApplication {
         return false; // No clash
     }
 }
+
