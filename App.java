@@ -46,6 +46,9 @@ public class App extends Application {
     TextField className = new TextField();
     TextField classTime = new TextField();
     TextField classLength = new TextField();
+    TextField classDays = new TextField();
+    TextField classRoom = new TextField();
+    TextField classCourse = new TextField();
     Button button = new Button("Add Class");
     Button buttonTwo = new Button("Remove Class");
     Button buttonThree = new Button("Display Schedule");
@@ -56,6 +59,9 @@ public class App extends Application {
     Label cName = new Label("Enter class name: ");
     Label cTime = new Label("Enter time of class: ");
     Label cLength = new Label("Enter length of class: ");
+    Label cDays = new Label("Enter day(s) of class: ");
+    Label room = new Label("Enter room(s) for class: ");
+    Label course = new Label("Enter the course name: ");
     
     
     public void start (Stage stage){
@@ -87,7 +93,8 @@ public class App extends Application {
                     String response = null;
                     
                     System.out.println("Enter message to be sent to server: ");
-                    message = ((className.getText().toString()) + (classTime.getText().toString()) + (classLength.getText().toString()));
+                    message = ((className.getText().toString()) + "," + (classTime.getText().toString()) + "," + (classLength.getText().toString()) + "," +
+                           (classDays.getText().toString()) + "," + (classRoom.getText().toString()) + "," + (classCourse.getText().toString()));
                     out.println(message);
                     response = in.readLine();
                     label.setText(response);
@@ -221,7 +228,7 @@ public class App extends Application {
         button.setOnAction(new EventHandler<ActionEvent>(){
             @Override
             public void handle(ActionEvent a){
-                VBox box = new VBox(cName, className,cLength, classLength, cTime, classTime, buttonFour, back, label);
+                VBox box = new VBox(cName, className,cLength, classLength, cTime, classTime, room, classRoom, cDays, classDays, course, classCourse, buttonFour, back, label);
                     box.setStyle("-fx-background-color: SLATEGRAY");
                     var sceneAddClass = new Scene(box, 640, 480);
                     stage.setScene(sceneAddClass);
@@ -245,7 +252,7 @@ public class App extends Application {
         buttonThree.setOnAction(new EventHandler<ActionEvent>(){
             @Override
             public void handle(ActionEvent a){
-               VBox box = new VBox(cName, className, buttonSix, back, label);
+               VBox box = new VBox(cName, className, course, classCourse, buttonSix, back, label);
                     box.setStyle("-fx-background-color: SLATEGRAY");
                     var sceneDisplaySchedule = new Scene(box, 640, 480);
                     stage.setScene(sceneDisplaySchedule);
@@ -285,10 +292,16 @@ public class App extends Application {
         cName.setFont(new Font("Arial", 14));
         cTime.setFont(new Font("Arial", 14));
         cLength.setFont(new Font("Arial", 14));
+        cDays.setFont(new Font("Arial", 14));
+        room.setFont(new Font("Arial", 14));
+        course.setFont(new Font("Arial", 15));
         label.setStyle("-fx-text-fill: white;");
         cName.setStyle("-fx-text-fill: white;");
         cTime.setStyle("-fx-text-fill: white;");
         cLength.setStyle("-fx-text-fill: white;");
+        cDays.setStyle("-fx-text-fill: white;");
+        room.setStyle("-fx-text-fill: white;");
+        course.setStyle("-fx-text-fill: white;");
     }
     
     public static void main(String[] args){
