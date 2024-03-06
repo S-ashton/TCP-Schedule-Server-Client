@@ -148,11 +148,11 @@ public TCPServer() {
             switch (actionParts[0]) {
                 case "ADD_CLASS":
                     if (actionParts.length == 6) {
-                        String date = actionParts[1].trim();
+                        String date = actionParts[4].trim();
                         String time = actionParts[2].trim();
-                        String room = actionParts[3].trim();
-                        String className = actionParts[4].trim();
-                        String length = actionParts[5].trim();
+                        String room = actionParts[5].trim();
+                        String className = actionParts[1].trim();
+                        String length = actionParts[3].trim();
 
                         if (!scheduleData.containsKey(className)) {
                             scheduleData.put(className, new ArrayList<>());
