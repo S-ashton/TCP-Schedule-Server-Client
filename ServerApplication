@@ -229,7 +229,37 @@ public TCPServer() {
             throw new IncorrectActionException("Invalid action format.");
         }
     }
+ /**
+     * Enum representing the action cases.
+     */
+    private enum ActionCase {
+        ADD_CLASS,
+        REMOVE_CLASS,
+        DISPLAY_SCHEDULE,
+        STOP
+    }
 
+    /**
+     * Converts the action string to the corresponding ActionCase enum.
+     *
+     * @param action The action string
+     * @return The corresponding ActionCase enum
+     * @throws IncorrectActionException If the action string is invalid
+     */
+    private ActionCase getActionCase(String action) throws IncorrectActionException {
+        switch (action.toUpperCase()) {
+            case "ADD_CLASS":
+                return ActionCase.ADD_CLASS;
+            case "REMOVE_CLASS":
+                return ActionCase.REMOVE_CLASS;
+            case "DISPLAY_SCHEDULE":
+                return ActionCase.DISPLAY_SCHEDULE;
+            case "STOP":
+                return ActionCase.STOP;
+            default:
+                throw new IncorrectActionException("Invalid action.");
+        }
+    }
     private boolean hasClash(List<ClassInfo> classes, String date, String time, String room) {
         // Implementation of logic to check for scheduling clash
         // assume there is a clash if the class has the same date, time, and room
