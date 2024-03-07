@@ -1,0 +1,31 @@
+everything inside the display case :)) 
+
+
+System.out.print ("display schedule received");//debug
+                  System.out.println("Full message: " + clientMessage);//debug
+                if (messageParts.length == 3) {
+                    String classNameToDisplay = messageParts[1].trim();
+                       String courseNameToDisplay = messageParts[2].trim();
+
+                    System.out.println("Class name: " + classNameToDisplay);
+                    System.out.println("Course name: " + courseNameToDisplay);
+                 validateCourseCode(courseNameToDisplay);  // Validate course code
+
+                    if (scheduleData.containsKey(classNameToDisplay)) {
+                        List<ClassInfo> classes = scheduleData.get(classNameToDisplay);
+
+                        StringBuilder scheduleDisplay = new StringBuilder();
+                        scheduleDisplay.append("| Name      | Day       | Time      | Room      |\n");
+                        scheduleDisplay.append("+-----------+-----------+-----------+\n");
+                        
+                        try (Formatter formatter = new Formatter(scheduleDisplay)){
+                        for (ClassInfo classInfo : classes) {
+                            formatter.format("| %-9s | %-9s | %-9s |\n",
+                            classNameToDisplay, classInfo.getDay(), classInfo.getTime(), classInfo.getRoom());
+                        }
+                        }
+
+                        // Print schedule to console (as per requirement)
+                        System.out.println(scheduleDisplay.toString());
+
+                        return "Schedule displayed successfully.";
