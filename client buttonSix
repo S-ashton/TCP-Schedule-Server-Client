@@ -1,0 +1,70 @@
+  buttonSix.setOnAction(new EventHandler<ActionEvent>(){
+            /**
+             * buttonSix handles the DISPLAY_SCHEDULE case for server interaction
+             * displays associated information for class input by user
+             * @param c the event which occurred
+             */
+            @Override
+            public void handle(ActionEvent c){
+                try
+                {
+                    host = InetAddress.getLocalHost();
+                }
+                catch(UnknownHostException e)
+                {
+                    out.println("Host ID not found.");
+                    System.exit(1);
+                }
+                Socket link = null;
+                try
+                {
+                    
+                    link = new Socket(host,PORT);
+                    BufferedReader in = new BufferedReader(new InputStreamReader (link.getInputStream()));
+                    PrintWriter out = new PrintWriter(link.getOutputStream(), true);
+                    
+                    String message = null;
+                    String response = null;
+                    StringBuilder responseBuilder = new StringBuilder();
+                    
+                    System.out.println("Enter message to be sent to server: ");
+                    message = ("DISPLAY_SCHEDULE," + (className.getText().toString()) + "," + (classCourse.getText().toString()));
+                    out.println(message);
+
+
+                    // Read lines in a loop until an empty line is encountered
+                    String line;
+                    int lineNumber = 1;
+                    while ((line = in.readLine()) != null && !line.isEmpty()) {
+                        responseBuilder.append(line).append("\n");
+                        System.out.println("Received line " + lineNumber + ": " + line);
+                        lineNumber++;
+                    }
+
+                    // Set the response to the label
+                    response = responseBuilder.toString();
+                    label.setText(response);
+                }
+                catch (IOException e)
+                {
+                    e.printStackTrace();
+                }
+                finally
+                {
+                    try
+                    {
+                        // Close resources in the finally block if needed
+                        if (in != null) in.close();
+                        if (out != null) out.close();
+                        if (link != null && !link.isClosed()) link.close();
+                        out.println("\n* Closing connection... *");
+                        link.close();
+                    }catch(IOException e)
+                    {
+                        out.println("Unable to disconnect.");
+                        System.exit(1);
+                    }
+                }
+            }
+        });
+        
