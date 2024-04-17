@@ -1,0 +1,498 @@
+
+package com.server1;
+
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
+import static java.lang.System.out;
+
+/**
+ * The TCPServer class represents a simple TCP server that manages a schedule of classes.
+ * It listens for client connections, receives messages from clients, processes them, and sends responses.
+ * The server uses a static ServerSocket to accept connections and manages a scheduleData HashMap
+ * to store class information.
+ * @author marshmallow
+ */
+
+class IncorrectActionException extends Exception {
+    public IncorrectActionException(String message) {
+        super(message);
+    }
+}
+
+class ActionClassNotFoundException extends Exception {
+    public ActionClassNotFoundException(String message) {
+        super(message);
+    }
+}
+
+/**
+ * ClassInfo class for storing class details
+ */
+record ClassInfo(String day, String time, String room) {
+    /**
+     * Constructor for ClassInfo.
+     *
+     * @param day  The day of the class
+     * @param time The time of the class
+     * @param room The room of the class
+     */
+    ClassInfo {
+    }
+
+    /**
+     * Getter for the day of the class.
+     *
+     * @return The day of the class
+     */
+    @Override
+    public String day() {
+        return day;
+    }
+
+    /**
+     * Getter for the time of the class.
+     *
+     * @return The time of the class
+     */
+    @Override
+    public String time() {
+        return time;
+    }
+
+    /**
+     * Getter for the room of the class.
+     *
+     * @return The room of the class
+     */
+    @Override
+    public String room() {
+        return room;
+    }
+}
+
+/**
+ * The Server1 class represents the main server application that handles client connections.
+ * It uses a static ServerSocket to listen for connections, processes client messages, and sends responses.
+ */
+public class Server1 {
+
+    private final ForkJoinPool pool = new ForkJoinPool();
+    private static final Logger LOGGER = Logger.getLogger(Server1.class.getName());
+
+    private static ServerSocket servSock;
+    private int clientConnections = 0;
+    private final HashMap<String, List<ClassInfo>> scheduleData;
+    private final Object lock = new Object(); // Object for synchronization
+
+
+    private String loadCSVFile(String fileName) {
+        StringBuilder content = new StringBuilder();
+        try (InputStream inputStream = getClass().getResourceAsStream("/" + fileName)) {
+            if (inputStream != null) {
+                LOGGER.info("CSV file found: " + fileName); // Log statement added
+                try (Scanner scanner = new Scanner(new InputStreamReader(inputStream))) {
+                    while (scanner.hasNextLine()) {
+                        String line = scanner.nextLine();
+                        content.append(line.replace(",", ""));
+                    }
+                }
+            } else {
+                throw new FileNotFoundException("File not found: " + fileName);
+            }
+        } catch (IOException e) {
+            LOGGER.warning("Error loading CSV file: " + e.getMessage()); // Log error
+            LOGGER.log(Level.SEVERE, "Exception occurred", e); // Log the exception with severe level
+            // Handle the exception appropriately (e.g., log an error, terminate the program)
+        }
+
+
+        return content.toString();
+    }
+
+    /**
+     * Constructor for Server1.
+     * Initialises the scheduleData HashMap.
+     */
+    public Server1(int port) {
+        scheduleData = new HashMap<>();
+        this.PORT = port;
+    }
+
+    public void run() {
+        try {
+            servSock = new ServerSocket(PORT); // Use servSock initialized in main
+            System.out.println("Server started on port " + PORT);
+
+            while (true) {
+                Socket clientSocket = servSock.accept();
+                System.out.println("Client connected!");
+
+                // Create a new client handler task and execute it using ForkJoinPool
+                ForkJoinPool.commonPool().execute(new ClientHandler(clientSocket));
+            }
+        } catch (IOException e) {
+            System.err.println("Server error: " + e.getMessage());
+        }
+    }
+
+    private static int PORT;
+
+    /**
+     * The main method that initialises and runs the TCPServer.
+     *
+     * @param args Command-line arguments (unused)
+     */
+    public static void main(String[] args) {
+
+        if (args.length > 0) {
+            try {
+                PORT = Integer.parseInt(args[0]);
+            } catch (NumberFormatException e) {
+                out.println("Invalid port number. Using default port: " + PORT);
+                PORT = 1234; // Default port
+            }
+        } else {
+            PORT = 1234; // Default port
+        }
+
+        Server1 instance = new Server1(PORT);
+
+        out.println("Opening port on " + PORT + "...\n");
+        try {
+            instance.run();
+        } catch (Exception e) {
+            out.println("Unable to attach to port!");
+            System.exit(1);
+        }
+
+        boolean continueRunning = true;
+        do {
+            try {
+                instance.run();
+            } catch (Exception e) {
+                out.println("An error occurred: " + e.getMessage());
+                LOGGER.severe("An error occurred: " + e.getMessage()); // Log the error message
+                continueRunning = false; // Set the flag to terminate the loop
+            }
+        } while (continueRunning);
+
+    }
+
+    class ClientHandler implements Runnable {
+        private final Socket clientSocket;
+
+        public ClientHandler(Socket clientSocket) {
+            this.clientSocket = clientSocket;
+        }
+
+        /**
+         * The run method is responsible for handling client connections, receiving messages,
+         * processing them, and sending responses back to clients.
+         */
+
+        public void run() {
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                 PrintWriter out = new PrintWriter(new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream())), true)) {
+
+                String clientMessage;
+                while ((clientMessage = in.readLine()) != null) {
+                    // Process the client message
+                    String response = processClientMessage(clientMessage);
+
+                    // Send the response back to the client
+                    out.println(response);
+                }
+
+            } catch (IOException e) {
+                System.err.println("Error handling client: " + clientSocket + " - " + e.getMessage());
+            } finally {
+                try {
+                    clientSocket.close();
+                } catch (IOException e) {
+                    // Handle closing socket exception
+                }
+            }
+        }
+
+        private void handleClient(Socket link) {
+            try {
+                BufferedReader in = new BufferedReader(new InputStreamReader(link.getInputStream())); //Step 3.
+                PrintWriter out = new PrintWriter(link.getOutputStream(), true); //Step 3.
+
+                String clientMessage;
+                while ((clientMessage = in.readLine()) != null) {
+                    System.out.println("Message received from client: " + clientConnections + "  " + clientMessage);
+
+                    // Process client message
+                    String ServerResponse = processClientMessage(clientMessage);
+
+                    // Send response to the client
+                    out.println(ServerResponse);
+
+                    // Check for termination condition
+                    if (ServerResponse.equals("TERMINATE")) {
+                        break;
+                    }
+                }
+                //Step 4.
+                //Step 4.
+            } catch (IOException e) {
+                // Handle "Connection reset" IOException
+                if (e.getMessage().equals("Connection reset")) {
+                    System.out.println("Client closed connection abruptly.");
+                } else {
+                    LOGGER.severe("An IOException occurred: " + e.getMessage());
+                }
+            } finally {
+                try {
+                    out.println("\n* Closing connection... *");
+                    if (link != null) {
+                        link.close(); //Step 5.
+                    }
+                } catch (IOException e) {
+                    LOGGER.severe("Unable to disconnect: " + e.getMessage());
+                    System.exit(1);
+                }
+            }
+
+        }
+
+        /**
+         * Processes the client's message and returns the server's response.
+         *
+         * @param clientMessage The message received from the client
+         * @return The server's response to the client
+         */
+        public String processClientMessage(String clientMessage) {
+            String[] messageParts = clientMessage.split(",");
+            String action = messageParts[0].trim();
+
+            try {
+                switch (action) {
+                    case "ADD_CLASS":
+                        out.print("add class request received");
+                        if (messageParts.length == 7) {
+                            String className = messageParts[1].trim();
+                            String time = messageParts[2].trim();
+                            String length = messageParts[3].trim();
+                            String Day = messageParts[4].trim();
+                            String room = messageParts[5].trim();
+                            String course = messageParts[6].trim();
+
+                            // Validate day, time, and room
+                            validateDay(Day);
+                            validateTime(time);
+                            validateRoom(room);
+                            validateCourseCode(course);
+                            validateClassLength(length);
+
+                            if (!scheduleData.containsKey(className)) {
+                                scheduleData.put(className, new ArrayList<>());
+                            }
+
+                            List<ClassInfo> classes = scheduleData.get(className);
+
+                            if (!hasClash(classes, Day, time, room)) {
+                                classes.add(new ClassInfo(Day, time, room));
+                                out.println("Schedule Data after adding class: " + scheduleData);  // debug
+                                return "Class added successfully.";
+
+                            } else {
+                                throw new IncorrectActionException("Class scheduling clash.");
+                            }
+                        } else {
+                            throw new IncorrectActionException("Invalid ADD_CLASS format.");
+                        }
+
+                    case "REMOVE_CLASS":
+                        out.print("remove class received");
+                        if (messageParts.length == 2) {
+                            String classNameToRemove = messageParts[1].trim();
+
+                            if (scheduleData.containsKey(classNameToRemove)) {
+                                out.println("Schedule Data before removing class: " + scheduleData);
+
+                                List<ClassInfo> classes = scheduleData.get(classNameToRemove);
+
+                                if (!classes.isEmpty()) {
+                                    ClassInfo removedClass = classes.remove(0);
+
+                                    return "Freed time slot: " + removedClass.day() + " " +
+                                            removedClass.time() + " in room " + removedClass.room();
+                                } else {
+                                    throw new IncorrectActionException("No classes to remove for " + classNameToRemove);
+                                }
+                            } else {
+                                throw new IncorrectActionException("Class not found: " + classNameToRemove);
+                            }
+
+                        } else {
+                            throw new IncorrectActionException("Invalid REMOVE_CLASS format.");
+                        }
+
+                    case "DISPLAY_SCHEDULE":
+
+                        if (messageParts.length == 3) {
+                            String classNameToDisplay = messageParts[1].trim();
+                            String courseNameToDisplay = messageParts[2].trim();
+
+                            out.println("Class name: " + classNameToDisplay);
+                            out.println("Course name: " + courseNameToDisplay);
+                            validateCourseCode(courseNameToDisplay);  // Validate course code
+
+                            if (scheduleData.containsKey(classNameToDisplay)) {
+                                List<ClassInfo> classes = scheduleData.get(classNameToDisplay);
+                                List<String> scheduleList = new ArrayList<>();
+                                for (ClassInfo classInfo : classes) {
+                                    scheduleList.add(String.format("%s,%s,%s,%s",
+                                            classNameToDisplay, classInfo.day(), classInfo.time(), classInfo.room()));
+                                }
+
+                                // Return comma separated list using join
+                                return String.join(",", scheduleList);
+                            } else {
+                                throw new IncorrectActionException("Class not found: " + classNameToDisplay);
+                            }
+
+                        } else {
+                            throw new IncorrectActionException("Invalid DISPLAY_SCHEDULE format.");
+                        }
+
+                    case "STOP":
+                        return "TERMINATE";
+
+                    default:
+                        throw new ActionClassNotFoundException("Action not recognised: " + action);
+                }
+            } catch (IncorrectActionException | ActionClassNotFoundException e) {
+                return e.getMessage();
+            }
+        }
+
+        
+        /**
+         * Checks for scheduling clashes in the given list of classes
+         *
+         * @param classes List of classes to check for clashes
+         * @param Day     Day of the class
+         * @param time    Time of the class
+         * @param room    Room of the class
+         * @return True if there is a clash, false otherwise
+         * @throws IncorrectActionException If there is an incorrect action
+         */
+        private boolean hasClash(List<ClassInfo> classes, String Day, String time, String room) throws IncorrectActionException {
+            validateRoom(room); // Validate room first
+
+            // Check for scheduling clash
+            for (ClassInfo classInfo : classes) {
+                if (classInfo.day().equals(Day) && classInfo.time().equals(time) && classInfo.room().equals(room)) {
+                    return true; // Clash found
+                }
+            }
+
+            return false; // No clash
+        }
+
+
+        // Validate if course code is a valid code from the list of 150 course codes
+        private boolean isValidCourseCode(String courseCode) {
+            String courseCodesContent = loadCSVFile("course-codes.csv");
+            return courseCodesContent.contains(courseCode);
+        }
+
+        /**
+         * Validate if course code is a valid code from the list of 150 course codes.
+         *
+         * @param courseCode The course code to validate
+         * @throws IncorrectActionException If the course code is invalid
+         */
+        private void validateCourseCode(String courseCode) throws IncorrectActionException {
+            if (!isValidCourseCode(courseCode)) {
+                throw new IncorrectActionException("Invalid course code. Please choose a valid course code.");
+            }
+        }
+
+        // Validate if room is a valid room code from the list of 200 rooms
+        private boolean isValidRoom(String room) {
+            String roomCodesContent = loadCSVFile("room-code.csv");
+            return roomCodesContent.contains(room);
+        }
+
+        /**
+         * Validate if room is a valid room code from the list of 200 rooms.
+         *
+         * @param room The room code to validate
+         * @throws IncorrectActionException If the room code is invalid
+         */
+        private void validateRoom(String room) throws IncorrectActionException {
+            if (!isValidRoom(room)) {
+                throw new IncorrectActionException("Invalid room code. Please choose a valid room code.");
+            }
+        }
+
+        /**
+         * Checks if the given day is valid (Monday to Friday).
+         */
+        private void validateDay(String Day) {
+            String[] validDays = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"};
+            for (String validDay : validDays) {
+                if (validDay.equalsIgnoreCase(Day)) {
+                    return;
+                }
+            }
+        }
+
+        /**
+         * Validate the length of the class.
+         *
+         * @param classLength The class length to validate
+         * @throws IncorrectActionException If the class length is invalid
+         */
+
+        private void validateClassLength(String classLength) throws IncorrectActionException {
+            try {
+                int classLengthValue = Integer.parseInt(classLength);
+
+                // Validate that the class length is within the desired range (30 to 180)
+                if (classLengthValue < 30 || classLengthValue > 180) {
+                    throw new IncorrectActionException("Class length must be between 30 and 180 minutes.");
+                }
+
+                // Validate that the class length is in intervals of 30
+                if (classLengthValue % 30 != 0) {
+                    throw new IncorrectActionException("Class length must be in intervals of 30 minutes.");
+                }
+            } catch (NumberFormatException e) {
+                throw new IncorrectActionException("Invalid class length format. Please provide a valid integer.");
+            }
+        }
+
+        /**
+         * Checks if the given time is valid (between 8 am and 8 pm).
+         *
+         * @param time The time to validate
+         * @throws IncorrectActionException If the time is invalid
+         */
+        private void validateTime(String time) throws IncorrectActionException {
+            try {
+                int hour = Integer.parseInt(time.split(":")[0]);
+                int minute = Integer.parseInt(time.split(":")[1].split(" ")[0]);
+
+                // Check if the time is between 8 am and 8 pm
+                if (!(hour >= 8 && hour < 20 && minute >= 0 && minute <= 59)) {
+                    throw new IncorrectActionException("Invalid time. Please choose a time between 8 am and 8 pm.");
+                }
+            } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
+                throw new IncorrectActionException("Invalid time format. Please use HH:mm (24-hour format).");
+            }
+        }
+    }
+}
