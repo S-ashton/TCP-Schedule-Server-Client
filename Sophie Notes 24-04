@@ -1,0 +1,16 @@
+Notes from Sophie on latest client and what it needs from the server 24-04-24 00:30
+
+DISPLAYING TIMETABLE
+- now course and class are two separate pages, the display by course page code is DISLPAY_SCHEDULE_COURSE
+                                                                display by class code is DISPLAY_SCHEDULE
+
+for both situations, the client expects the same class strings as before, but for multiple classes, expects the class information strings to be separates by /
+
+exmaple of expected response: CS4076,Monday,10:00,A101/CS4076,Wednesday,12:00,A101
+
+ADMIN/USER LOGIN
+- all that is needed is logic for storing usernames and passwords
+        I would suggest a hashmap --> username (key) password - (value)
+I plan to have this login page finsihed by tomorrow :)
+
+Anything aesthetically with the timetable can be changed no problem, just let me know
