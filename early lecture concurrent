@@ -1,0 +1,141 @@
+
+                    case "EARLY_LECTURES":
+                        if (messageParts.length == 2) {
+                            String className = messageParts[1].trim();
+                            List<ClassInfo> classesForName = new ArrayList<>();
+                            for (List<ClassInfo> classList : scheduleData.values()) {
+                                for (ClassInfo classInfo : classList) {
+                                    if (classInfo.name().equals(className)) {
+                                        classesForName.add(classInfo);
+                                    }
+                                }
+                            }
+                            if (!classesForName.isEmpty()) {
+                                // Create a task to handle the early lectures
+                                Task<Void> earlyLecturesTask = new Task<>() {
+                                    @Override
+                                    protected Void call() {
+                                        // Log the task execution
+                                        System.out.println("Computing EarlyLecturesTask for " + className);
+
+                                        if (classesForName.size() <= THRESHOLD) {
+                                            // Log direct execution
+                                            System.out.println("Shifting classes directly: " + classesForName.toString());
+
+                                            shiftClassesToEarlyMorning(className);
+                                        } else {
+                                            // Split the task into smaller subtasks
+                                            List<EarlyLecturesTask> subtasks = createSubtasks();
+                                            for (EarlyLecturesTask subtask : subtasks) {
+                                                subtask.fork(); // Asynchronously execute subtask
+                                            }
+                                            // Wait for each subtask to complete
+                                            for (EarlyLecturesTask subtask : subtasks) {
+                                                subtask.join();
+                                                // Log subtask execution
+                                                System.out.println("Subtask executed: " + subtask);
+                                            }
+                                        }
+                                        return null;
+                                    }
+                                };
+                                // Start the task in a new thread
+                                new Thread(earlyLecturesTask).start();
+                                return "Classes shifting to early morning for " + className;
+                            } else {
+                                return "No classes found for " + className;
+                            }
+                        } else {
+                            return "Invalid EARLY_LECTURES format.";
+                        }
+
+                    case "STOP":
+                        return "TERMINATE";
+
+                    default:
+                        throw new ActionClassNotFoundException("Action not recognised: " + action);
+                }
+            } catch (IncorrectActionException | ActionClassNotFoundException e) {
+                return e.getMessage();
+            }
+        }
+
+        public class EarlyLecturesTask extends Task<Void> {
+            private final String className;
+            private final List<ClassInfo> classesForName;
+            private static final int THRESHOLD = 2; // Adjust threshold as needed
+
+            public EarlyLecturesTask(String className, List<ClassInfo> classesForName) {
+                this.className = className;
+                this.classesForName = classesForName;
+            }
+
+            @Override
+            protected Void call() {
+                // Add logging statement to track task execution
+                System.out.println("Computing EarlyLecturesTask for " + className);
+
+                if (classesForName.size() <= THRESHOLD) {
+                    // Add logging statement to track direct execution
+                    System.out.println("Shifting classes directly: " + classesForName.toString());
+
+                    shiftClassesToEarlyMorning(className);
+                } else {
+                    // Split the task into smaller subtasks
+                    List<EarlyLecturesTask> subtasks = createSubtasks();
+                    for (EarlyLecturesTask subtask : subtasks) {
+                        subtask.fork(); // Asynchronously execute subtask
+                    }
+                    // Wait for each subtask to complete
+                    for (EarlyLecturesTask subtask : subtasks) {
+                        subtask.join();
+                        // Add logging statement to track subtask execution
+                        System.out.println("Subtask executed: " + subtask);
+                    }
+                }
+                return null;
+            }
+
+            private List<EarlyLecturesTask> createSubtasks() {
+                List<EarlyLecturesTask> subtasks = new ArrayList<>();
+
+                // Determine the number of chunks based on the threshold
+                int chunkSize = (int) Math.ceil((double) classesForName.size() / THRESHOLD);
+
+                // Split the classesForName list into smaller chunks
+                for (int i = 0; i < classesForName.size(); i += chunkSize) {
+                    int end = Math.min(i + chunkSize, classesForName.size());
+                    List<ClassInfo> chunk = classesForName.subList(i, end);
+                    subtasks.add(new EarlyLecturesTask(className, new ArrayList<>(chunk)));
+                }
+
+                return subtasks;
+            }
+
+            synchronized void shiftClassesToEarlyMorning(String className) {
+                List<ClassInfo> classesWithName = scheduleData.getOrDefault(className, new ArrayList<>());
+
+                // Iterate through the possible time slots starting from the earliest (9:00 AM)
+                for (int hour = 9; hour < 18; hour++) {
+                    String potentialStartTime = String.format("%02d:00", hour);
+
+                    // Check if any classes are already scheduled during the potential time slot
+                    boolean slotOccupied = classesWithName.stream()
+                            .anyMatch(classInfo -> classInfo.time().equals(potentialStartTime));
+
+                    // If the time slot is not occupied, shift the classes to start at this time
+                    if (!slotOccupied) {
+                        // Shift the classes to the earliest available time slot
+                        for (ClassInfo classInfo : classesWithName) {
+                            classInfo.setTime(potentialStartTime);
+                        }
+                        // Update the scheduleData hashmap with the modified list of ClassInfo objects
+                        scheduleData.put(className, classesWithName);
+                        // Break the loop once the classes have been shifted
+                        break;
+                    }
+                }
+            }
+
+
+        }
