@@ -1,0 +1,38 @@
+
+        synchronized void shiftClassesForDay(List<ClassInfo> classes, String className) {
+            List<ClassInfo> classesWithName = scheduleData.getOrDefault(className, new ArrayList<>());
+
+            // Iterate through the possible time slots starting from the earliest (9:00 AM)
+            for (int hour = 9; hour < 18; hour++) {
+                String potentialStartTime = String.format("%02d:00", hour);
+
+                // Check if any classes are already scheduled during the potential time slot
+                boolean slotOccupied = hasClashAtTime(classesWithName, potentialStartTime);
+
+                // If the time slot is not occupied, shift the classes to start at this time
+                if (!slotOccupied) {
+                    // Shift the classes to the earliest available time slot
+                    for (ClassInfo classInfo : classesWithName) {
+                        classInfo.setTime(potentialStartTime);
+                    }
+                    // Update the scheduleData hashmap with the modified list of ClassInfo objects
+                    scheduleData.put(className, classesWithName);
+                    System.out.println("Shifting class '" + className + " to early morning.");
+                    // Break the loop once the classes have been shifted
+                    break;
+                }
+            }
+        }
+
+        /**
+         * Checks for scheduling clashes in the given list of classes at a specific time. (does not replace hasclash)
+         *
+         * @param classes The list of classes to check for clashes
+         * @param time    The time to check for clashes
+         * @return True if there is a clash, false otherwise
+         */
+        private synchronized boolean hasClashAtTime(List<ClassInfo> classes, String time) {
+            // Check for scheduling clash at the specified time
+            return classes.stream()
+                    .anyMatch(classInfo -> classInfo.time().equals(time));
+        }
