@@ -1,0 +1,172 @@
+EARLY LECTURES SNIPPET
+
+case "EARLY_LECTURES":
+                        if (messageParts.length == 2) {
+                            String className = messageParts[1].trim();
+
+
+
+                            LOGGER.info("Submitting early lectures task for class: " + className);
+
+                            // Create your FutureTask
+                            FutureTask<String> earlyLecturesTask = createEarlyLecturesTask(className);
+
+                            // Submit to the executor
+                            pool.execute(earlyLecturesTask);
+
+                            // Handle outcomes
+                            pool.submit(() -> {
+                                try {
+                                    // Here we block and wait for the task to complete and get the result
+                                    String result = earlyLecturesTask.get();
+                                    System.out.println("Early lectures request completed: " + result);
+                                } catch (CancellationException ce) {
+                                    System.out.println("Early lectures request cancelled.");
+                                } catch (ExecutionException ee) {
+                                    Throwable cause = ee.getCause();  // This gets the actual exception thrown from the callable
+                                    System.out.println("Early lectures request failed: " + cause.getMessage());
+                                } catch (InterruptedException ie) {
+                                    Thread.currentThread().interrupt(); // Reset interrupt flag
+                                    System.out.println("Task interrupted.");
+                                }
+                            });
+                            return "Early lectures request submitted.";
+                        } else {
+                            throw new IncorrectActionException("Invalid EARLY_LECTURES format.");
+                        }
+
+                    case "STOP":
+                        return "TERMINATE";
+
+                    default:
+                        throw new ActionClassNotFoundException("Action not recognised: " + action);
+                }
+            } catch (IncorrectActionException | ActionClassNotFoundException e) {
+                return e.getMessage();
+            }
+        }
+        private FutureTask<String> createEarlyLecturesTask(String className) {
+            LOGGER.info("Creating early lectures task for class: " + className);
+
+            Callable<String> callable = () -> {
+                LOGGER.info("Shifting classes to early morning for class: " + className);
+                shiftClassesToEarlyMorning(className);
+                return "Classes shifted to early morning successfully.";
+            };
+
+            return new FutureTask<>(callable);
+        }
+
+        synchronized void shiftClassesToEarlyMorning(String className) {
+            LOGGER.info("Shifting classes to early morning for class: " + className);
+            List<ClassInfo> classesWithName = scheduleData.getOrDefault(className, new ArrayList<>());
+
+            // Iterate through the days of the week
+            for (String day : Arrays.asList("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")) {
+                // Create a RecursiveAction for shifting classes for the current day
+                ShiftClassesAction shiftClassesAction = new ShiftClassesAction(classesWithName, day, className);
+                LOGGER.info("Executing ShiftClassesAction for class: " + className + " on day: " + day);
+
+                pool.execute(shiftClassesAction);
+            }
+        }
+
+        class ShiftClassesAction extends RecursiveAction {
+            private static final int THRESHOLD = 10;
+            private List<ClassInfo> classes;
+            private String day;
+            String className;
+
+            public ShiftClassesAction(List<ClassInfo> classes, String day, String className) {
+                this.classes = classes;
+                this.day = day;
+                this.className = className;
+            }
+
+            @Override
+            protected void compute() {
+                LOGGER.info("Computing ShiftClassesAction for day: " + day);
+                if (classes.size() <= THRESHOLD) {
+                    shiftClassesForDay(classes, className);
+                } else {
+                    // Split the list into smaller sublists
+                    List<List<ClassInfo>> subLists = new ArrayList<>();
+                    int subListSize = classes.size() / 2;
+                    for (int i = 0; i < classes.size(); i += subListSize) {
+                        subLists.add(classes.subList(i, Math.min(i + subListSize, classes.size())));
+                    }
+
+                    // Create tasks for each sublist and invoke them
+                    List<ShiftClassesAction> tasks = new ArrayList<>();
+                    for (List<ClassInfo> subList : subLists) {
+                        ShiftClassesAction task = new ShiftClassesAction(subList, day, className);
+                        task.fork();
+                        tasks.add(task);
+                    }
+
+                    // Join the results of all tasks
+                    for (ShiftClassesAction task : tasks) {
+                        task.join();
+                    }
+                }
+            }
+        }
+
+        synchronized void shiftClassesForDay(List<ClassInfo> classes, String className) {
+            LOGGER.info("Shifting classes for day for class: " + className);
+            System.out.println("className: " + className);
+            //System.out.println("Contents of scheduleData: " + scheduleData);
+            List<ClassInfo> classesWithName = scheduleData.get(className);
+            //System.out.println("result of get schedule data: " + scheduleData.get(className));
+            //System.out.println("classesWithName list: " + classesWithName);
+
+            // Log each class info for debugging
+            if (classesWithName != null) {
+                classesWithName.forEach(classInfo -> System.out.println(classInfo.name() + " at " + classInfo.time()));
+            }
+
+            // Iterate through the possible time slots starting from the earliest (9:00 AM)
+            for (int hour = 9; hour < 18; hour++) {
+                String potentialStartTime = String.format("%02d:00", hour);
+                System.out.println("Current potentialSTime: " + potentialStartTime);
+
+                // Check if any classes are already scheduled during the potential time slot
+                boolean slotOccupied = true;
+                try {
+                    slotOccupied = hasClashAtTime(classesWithName, potentialStartTime);
+                    System.out.println("slotOccupied " + slotOccupied + " at " + potentialStartTime);
+                } catch (IncorrectActionException e) {
+                    throw new RuntimeException(e);
+                }
+
+                // If the time slot is not occupied, shift the classes to start at this time
+                if (!slotOccupied) {
+                    // Shift the classes to the earliest available time slot
+                    for (ClassInfo classInfo : classesWithName) {
+                        classInfo.setTime(potentialStartTime);
+                    }
+                    // Update the scheduleData hashmap with the modified list of ClassInfo objects
+                    scheduleData.put(className, classesWithName);
+                    System.out.println("Shifting class '" + className + " to early morning.");
+                    // Break the loop once the classes have been shifted
+                    break;
+                }
+            }
+        }
+
+
+--------------------
+HAS CLASH METHOD THAT CHECKS WRONG THING
+
+ private synchronized boolean hasClashAtTime(List<ClassInfo> classes, String time) throws IncorrectActionException{
+            for (ClassInfo classInfo : classes){
+                System.out.println("class Info's time: " + classInfo.time() + "time: " + time);
+                if(classInfo.time().equals(time)){
+                    System.out.println("class Info's time: " + classInfo.time() + "time: " + time);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+
